@@ -163,8 +163,12 @@ def is_prebuilt(title, summary):
 
     title = normalize(title)
 
-    # Expressions caractéristiques des PC complets
     patterns = [
+        r"\bpc portable\b",
+        r"\bordinateur portable\b",
+        r"\blaptop\b",
+        r"\bnotebook\b",
+        r"\bchromebook\b",
         r"\bpc gamer\b",
         r"\bpc gaming\b",
         r"\bpc fixe\b",
@@ -173,7 +177,6 @@ def is_prebuilt(title, summary):
         r"\bpc assemble\b",
         r"\bordinateur gamer\b",
         r"\bordinateur gaming\b",
-        r"\bordinateur de bureau\b",
         r"\btour gaming\b",
         r"\btour gamer\b",
         r"\bunite centrale\b",
@@ -186,10 +189,13 @@ def is_prebuilt(title, summary):
         r"\btout en un\b"
     ]
 
-    # Recherche des expressions dans le titre
     for pattern in patterns:
         if re.search(pattern, title):
             return True
+
+    return False
+
+
 
     # Détection d'une configuration complète
     cpu = [
@@ -256,11 +262,50 @@ def is_prebuilt(title, summary):
 def classify(title, summary):
 
     title = normalize(title)
-    summary = normalize(summary)
 
-    # On refuse les PC complets
+    # Exclusion prioritaire
     if is_prebuilt(title, summary):
         return None
+
+    for category, keywords in CATEGORIES.items():
+
+        # Un écran doit être identifié comme un moniteur.
+        # OLED, IPS et Mini-LED seuls ne suffisent pas.
+        if category == "ECRAN":
+
+            screen_identifiers = [
+                "ecran",
+                "moniteur",
+                "monitor",
+                "display"
+            ]
+
+            if not any(
+                contains_keyword(title, word)
+                for word in screen_identifiers
+            ):
+                continue
+
+        for keyword in keywords:
+
+            if contains_keyword(title, keyword):
+
+                if keyword in ["rtx", "rx "]:
+                    if not any(
+                        contains_keyword(title, x)
+                        for x in [
+                            "carte graphique",
+                            "geforce",
+                            "radeon"
+                        ]
+                    ):
+                        continue
+
+                return category
+
+    return None
+
+
 
     # Le titre doit contenir un mot-clé pertinent.
     # La description seule ne suffit pas.
