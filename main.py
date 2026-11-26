@@ -187,6 +187,13 @@ def is_prebuilt(title, summary):
         r"\bbarebone\b",
         r"\ball in one\b",
         r"\btout en un\b"
+        r"^pc\b",
+r"\bpc gaming\b",
+r"\bpc gamer\b",
+r"\bpc fixe\b",
+r"\bordinateur complet\b",
+r"\bordinateur de bureau\b",
+r"\b8700f\b",
     ]
 
     for pattern in patterns:
