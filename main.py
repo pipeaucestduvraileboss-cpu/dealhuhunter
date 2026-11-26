@@ -194,6 +194,10 @@ r"\bpc fixe\b",
 r"\bordinateur complet\b",
 r"\bordinateur de bureau\b",
 r"\b8700f\b",
+      r"^pc gamer\b",
+r"^pc gaming\b",
+r"^pc black\b",
+r"^pc cyber\b",  
     ]
 
     for pattern in patterns:
