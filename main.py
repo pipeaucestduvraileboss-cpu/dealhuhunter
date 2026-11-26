@@ -1,4 +1,5 @@
 
+
 import feedparser
 import re
 from urllib.request import Request, urlopen
@@ -11,9 +12,23 @@ FEEDS = {
 KEYWORDS = [
     "carte graphique", "geforce", "radeon", "rtx", "rx ",
     "processeur", "ryzen", "intel core", "cpu",
-    "ram", "ddr4", "ddr5", "ssd", "nvme",
-    "carte mere", "carte mère", "alimentation",
-    "boitier pc", "boîtier pc"
+    "ram", "ddr4", "ddr5",
+    "ssd", "nvme", "carte mere", "carte mère",
+    "alimentation", "boitier pc", "boîtier pc",
+
+    "ecran", "écran", "moniteur",
+    "oled", "qd-oled", "mini-led", "amoled",
+    "ips", "144hz", "165hz", "180hz",
+    "240hz", "360hz", "ultrawide",
+
+    "clavier", "souris gaming",
+    "casque gaming"
+]
+
+EXCLUDED = [
+    "ordinateur portable", "pc portable",
+    "laptop", "notebook", "chromebook",
+    "tablette", "ipad", "galaxy tab"
 ]
 
 def clean(text):
@@ -21,22 +36,27 @@ def clean(text):
 
 def is_relevant(text):
     text = text.lower()
+
+    if any(word in text for word in EXCLUDED):
+        return False
+
     return any(word in text for word in KEYWORDS)
 
 def main():
     print("=== DEALHUNTER ===")
-    print("Recherche des offres informatiques...\n")
+    print("Recherche des composants et périphériques PC...\n")
 
     seen = set()
 
     for source, url in FEEDS.items():
-        print(f"Source : {source}")
+        print(f"\nSource : {source}")
 
         try:
             request = Request(
                 url,
                 headers={"User-Agent": "DealHunter/1.0"}
             )
+
             data = urlopen(request, timeout=15).read()
             feed = feedparser.parse(data)
 
