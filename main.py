@@ -162,13 +162,72 @@ def contains_keyword(text, keyword):
 def is_prebuilt(title, summary):
 
     title = normalize(title)
-    summary = normalize(summary)
 
-    # Exclusions prioritaires dans le titre
-    for word in EXCLUDED:
+    # Expressions caractéristiques des PC complets
+    patterns = [
+        r"\bpc gamer\b",
+        r"\bpc gaming\b",
+        r"\bpc fixe\b",
+        r"\bpc complet\b",
+        r"\bpc premont(e|e)\b",
+        r"\bpc assemble\b",
+        r"\bordinateur gamer\b",
+        r"\bordinateur gaming\b",
+        r"\bordinateur de bureau\b",
+        r"\btour gaming\b",
+        r"\btour gamer\b",
+        r"\bunite centrale\b",
+        r"\bdesktop gaming\b",
+        r"\bconfiguration gaming\b",
+        r"\bconfiguration gamer\b",
+        r"\bmini pc\b",
+        r"\bbarebone\b",
+        r"\ball in one\b",
+        r"\btout en un\b"
+    ]
 
-        if contains_keyword(title, word):
+    # Recherche des expressions dans le titre
+    for pattern in patterns:
+        if re.search(pattern, title):
             return True
+
+    # Détection d'une configuration complète
+    cpu = [
+        "ryzen", "intel core", "core i5",
+        "core i7", "core i9", "core ultra"
+    ]
+
+    gpu = [
+        "geforce", "radeon", "rtx", "rx "
+    ]
+
+    has_cpu = any(
+        contains_keyword(title, word)
+        for word in cpu
+    )
+
+    has_gpu = any(
+        contains_keyword(title, word)
+        for word in gpu
+    )
+
+    has_ram = any(
+        contains_keyword(title, word)
+        for word in ["ddr4", "ddr5", "ram"]
+    )
+
+    has_storage = any(
+        contains_keyword(title, word)
+        for word in ["ssd", "nvme"]
+    )
+
+    # Plusieurs composants réunis dans un même titre
+    if has_cpu and has_gpu and has_ram and has_storage:
+        return True
+
+    return False
+
+
 
     # Exclusions dans la description
     summary_exclusions = [
