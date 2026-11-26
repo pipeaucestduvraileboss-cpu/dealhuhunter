@@ -162,6 +162,10 @@ def contains_keyword(text, keyword):
 def is_prebuilt(title, summary):
 
     title = normalize(title)
+    
+# Exclusion immédiate des titres commençant par PC
+if re.match(r"^pc\b", title):
+    return True
 
     patterns = [
         r"\bpc portable\b",
