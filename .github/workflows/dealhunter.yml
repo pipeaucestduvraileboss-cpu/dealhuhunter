@@ -47,3 +47,11 @@ jobs:
               git push
             )
           fi
+          
+      - name: Verifier les secrets Gmail
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          python -c "import os; print('GMAIL_ADDRESS present:', bool(os.getenv('GMAIL_ADDRESS'))); print('GMAIL_APP_PASSWORD present:', bool(os.getenv('GMAIL_APP_PASSWORD')))"
+
