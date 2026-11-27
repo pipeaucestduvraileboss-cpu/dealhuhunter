@@ -1,9 +1,14 @@
 
-
 import feedparser
-import re
 import html
+import json
+import os
+import re
+import smtplib
 import unicodedata
+
+from email.message import EmailMessage
+from pathlib import Path
 from urllib.request import Request, urlopen
 
 # ==========================================
@@ -15,135 +20,78 @@ FEEDS = {
     "Les Numeriques": "https://www.lesnumeriques.com/rss-gooddeals.xml",
 }
 
+STATE_FILE = Path("seen_links.json")
+
 # ==========================================
-# CATEGORIES RECHERCHEES
+# 13 CATEGORIES RECHERCHEES
 # ==========================================
 
 CATEGORIES = {
     "GPU": [
-        "carte graphique", "geforce", "radeon",
-        "rtx", "rx "
+        "carte graphique", "geforce", "radeon", "rtx", "rx "
     ],
-
     "CPU": [
-        "processeur", "ryzen", "intel core",
-        "core i5", "core i7", "core i9",
-        "core ultra"
+        "processeur", "ryzen", "intel core", "core i5",
+        "core i7", "core i9", "core ultra"
     ],
-
-    "RAM": [
-        "ram", "ddr4", "ddr5", "memoire vive"
-    ],
-
-    "SSD": [
-        "ssd", "nvme"
-    ],
-
+    "RAM": ["ram", "ddr4", "ddr5", "memoire vive"],
+    "SSD": ["ssd", "nvme"],
     "CARTE MERE": [
-        "carte mere", "motherboard",
-        "b650", "x670", "x870",
-        "z790", "z890"
+        "carte mere", "motherboard", "b650",
+        "x670", "x870", "z790", "z890"
     ],
-
     "ALIMENTATION": [
         "alimentation pc", "bloc alimentation",
-        "power supply", "80 plus gold",
-        "80 plus platinum"
+        "power supply", "80 plus gold", "80 plus platinum"
     ],
-
-    "BOITIER": [
-        "boitier pc", "boitier gaming"
-    ],
-
+    "BOITIER": ["boitier pc", "boitier gaming"],
     "REFROIDISSEMENT": [
         "ventirad", "watercooling", "aio",
         "refroidissement liquide", "radiateur cpu"
     ],
-
     "VENTILATEUR": [
         "ventilateur pc", "ventilateur boitier"
     ],
-
     "ECRAN": [
-        "ecran", "moniteur", "monitor",
-        "oled", "qd-oled", "mini-led",
-        "amoled", "ips", "144hz", "165hz",
-        "180hz", "240hz", "360hz", "ultrawide"
+        "ecran", "moniteur", "monitor", "oled",
+        "qd-oled", "mini-led", "amoled", "ips",
+        "144hz", "165hz", "180hz", "240hz",
+        "360hz", "ultrawide"
     ],
-
     "CLAVIER": [
         "clavier gaming", "clavier mecanique",
         "clavier sans fil", "clavier rgb"
     ],
-
     "SOURIS": [
         "souris gaming", "souris sans fil",
         "souris ergonomique"
     ],
-
     "CASQUE": [
         "casque gaming", "casque gamer",
         "micro casque gaming"
-    ]
+    ],
 }
 
 # ==========================================
-# PRODUITS EXCLUS
-# ==========================================
-
-EXCLUDED = [
-    "pc portable",
-    "ordinateur portable",
-    "laptop",
-    "notebook",
-    "chromebook",
-    "tablette",
-    "ipad",
-    "galaxy tab",
-    "pc gamer",
-    "pc gaming",
-    "ordinateur gamer",
-    "ordinateur gaming",
-    "tour gaming",
-    "tour gamer",
-    "pc preassemble",
-    "pc pre monte",
-    "pc premonté",
-    "pc assemble",
-    "pc assemblé",
-    "pc complet",
-    "configuration gaming",
-    "configuration gamer",
-    "desktop gaming",
-    "barebone",
-    "mini pc",
-    "all in one",
-    "tout en un"
-]
-
-# ==========================================
-# NORMALISATION DU TEXTE
+# NORMALISATION
 # ==========================================
 
 def normalize(text):
-
     text = html.unescape(text or "")
     text = re.sub(r"<[^>]+>", " ", text)
-
     text = unicodedata.normalize("NFD", text.lower())
 
     text = "".join(
-        c for c in text
-        if unicodedata.category(c) != "Mn"
+        char for char in text
+        if unicodedata.category(char) != "Mn"
     )
 
     text = re.sub(r"[^a-z0-9]+", " ", text)
-
     return re.sub(r"\s+", " ", text).strip()
 
 
 def contains_keyword(text, keyword):
-
+    text = normalize(text)
     keyword = normalize(keyword)
 
     pattern = (
@@ -156,33 +104,38 @@ def contains_keyword(text, keyword):
 
 
 # ==========================================
-# DETECTION DES PC COMPLETS
+# EXCLUSION DES PC COMPLETS ET PORTABLES
 # ==========================================
 
 def is_prebuilt(title, summary):
-
     title = normalize(title)
-    
-# Exclusion immédiate des titres commençant par PC
-if re.match(r"^pc\b", title):
-    return True
+    summary = normalize(summary)
 
-    patterns = [
+    if re.match(r"^pc\b", title):
+        return True
+
+    excluded_patterns = [
         r"\bpc portable\b",
         r"\bordinateur portable\b",
         r"\blaptop\b",
         r"\bnotebook\b",
         r"\bchromebook\b",
+        r"\btablette\b",
+        r"\bipad\b",
+        r"\bgalaxy tab\b",
         r"\bpc gamer\b",
         r"\bpc gaming\b",
-        r"\bpc fixe\b",
-        r"\bpc complet\b",
-        r"\bpc premont(e|e)\b",
-        r"\bpc assemble\b",
         r"\bordinateur gamer\b",
         r"\bordinateur gaming\b",
         r"\btour gaming\b",
         r"\btour gamer\b",
+        r"\bpc fixe\b",
+        r"\bpc complet\b",
+        r"\bordinateur complet\b",
+        r"\bordinateur de bureau\b",
+        r"\bpc preassemble\b",
+        r"\bpc pre monte\b",
+        r"\bpc assemble\b",
         r"\bunite centrale\b",
         r"\bdesktop gaming\b",
         r"\bconfiguration gaming\b",
@@ -190,46 +143,50 @@ if re.match(r"^pc\b", title):
         r"\bmini pc\b",
         r"\bbarebone\b",
         r"\ball in one\b",
-        r"\btout en un\b"
-        r"^pc\b",
-r"\bpc gaming\b",
-r"\bpc gamer\b",
-r"\bpc fixe\b",
-r"\bordinateur complet\b",
-r"\bordinateur de bureau\b",
-r"\b8700f\b",
-      r"^pc gamer\b",
-r"^pc gaming\b",
-r"^pc black\b",
-r"^pc cyber\b",  
+        r"\btout en un\b",
     ]
 
-    for pattern in patterns:
-        if re.search(pattern, title):
-            return True
+    if any(
+        re.search(pattern, title)
+        for pattern in excluded_patterns
+    ):
+        return True
 
-    return False
+    summary_exclusions = [
+        "pc preassemble",
+        "pc pre monte",
+        "pc complet",
+        "tour gaming",
+        "tour gamer",
+        "configuration gaming",
+        "configuration gamer",
+        "ordinateur gaming",
+        "ordinateur gamer",
+        "unite centrale",
+    ]
 
+    if any(
+        contains_keyword(summary, word)
+        for word in summary_exclusions
+    ):
+        return True
 
-
-    # Détection d'une configuration complète
-    cpu = [
+    # Plusieurs composants réunis peuvent indiquer un PC complet.
+    cpu_words = [
         "ryzen", "intel core", "core i5",
         "core i7", "core i9", "core ultra"
     ]
 
-    gpu = [
-        "geforce", "radeon", "rtx", "rx "
-    ]
+    gpu_words = ["geforce", "radeon", "rtx", "rx "]
 
     has_cpu = any(
         contains_keyword(title, word)
-        for word in cpu
+        for word in cpu_words
     )
 
     has_gpu = any(
         contains_keyword(title, word)
-        for word in gpu
+        for word in gpu_words
     )
 
     has_ram = any(
@@ -242,127 +199,139 @@ r"^pc cyber\b",
         for word in ["ssd", "nvme"]
     )
 
-    # Plusieurs composants réunis dans un même titre
-    if has_cpu and has_gpu and has_ram and has_storage:
-        return True
-
-    return False
-
-
-
-    # Exclusions dans la description
-    summary_exclusions = [
-        "pc preassemble",
-        "pc pre monte",
-        "pc complet",
-        "tour gaming",
-        "tour gamer",
-        "configuration gaming",
-        "configuration gamer",
-        "ordinateur gaming"
-    ]
-
-    for word in summary_exclusions:
-
-        if contains_keyword(summary, word):
-            return True
-
-    return False
+    return has_cpu and has_gpu and has_ram and has_storage
 
 
 # ==========================================
-# CLASSIFICATION DES OFFRES
+# CLASSIFICATION
 # ==========================================
 
 def classify(title, summary):
-
     title = normalize(title)
 
-    # Exclusion prioritaire
     if is_prebuilt(title, summary):
         return None
 
     for category, keywords in CATEGORIES.items():
 
-        # Un écran doit être identifié comme un moniteur.
-        # OLED, IPS et Mini-LED seuls ne suffisent pas.
         if category == "ECRAN":
-
-            screen_identifiers = [
-                "ecran",
-                "moniteur",
-                "monitor",
-                "display"
+            identifiers = [
+                "ecran", "moniteur", "monitor", "display"
             ]
 
             if not any(
                 contains_keyword(title, word)
-                for word in screen_identifiers
+                for word in identifiers
             ):
                 continue
 
         for keyword in keywords:
 
-            if contains_keyword(title, keyword):
+            if not contains_keyword(title, keyword):
+                continue
 
-                if keyword in ["rtx", "rx "]:
-                    if not any(
-                        contains_keyword(title, x)
-                        for x in [
-                            "carte graphique",
-                            "geforce",
-                            "radeon"
-                        ]
-                    ):
-                        continue
+            if normalize(keyword) in ["rtx", "rx"]:
+                identifiers = [
+                    "carte graphique", "geforce", "radeon"
+                ]
 
-                return category
+                if not any(
+                    contains_keyword(title, word)
+                    for word in identifiers
+                ):
+                    continue
 
-    return None
-
-
-
-    # Le titre doit contenir un mot-clé pertinent.
-    # La description seule ne suffit pas.
-
-    for category, keywords in CATEGORIES.items():
-
-        for keyword in keywords:
-
-            if contains_keyword(title, keyword):
-
-                # RTX et RX seuls ne suffisent pas
-                if keyword in ["rtx", "rx "]:
-                    if not any(
-                        contains_keyword(title, x)
-                        for x in [
-                            "carte graphique",
-                            "geforce",
-                            "radeon"
-                        ]
-                    ):
-                        continue
-
-                # Les périphériques et composants
-                # sont classés par catégorie.
-                return category
+            return category
 
     return None
 
 
 # ==========================================
-# RECHERCHE DES OFFRES
+# HISTORIQUE DES DOUBLONS
+# ==========================================
+
+def load_seen_links():
+    if not STATE_FILE.exists():
+        return set()
+
+    try:
+        data = json.loads(
+            STATE_FILE.read_text(encoding="utf-8")
+        )
+
+        return set(data) if isinstance(data, list) else set()
+
+    except (OSError, json.JSONDecodeError):
+        print("Attention : historique illisible.")
+        return set()
+
+
+def save_seen_links(seen_links):
+    STATE_FILE.write_text(
+        json.dumps(
+            sorted(seen_links),
+            ensure_ascii=False,
+            indent=2
+        ),
+        encoding="utf-8"
+    )
+
+
+# ==========================================
+# ENVOI GMAIL
+# ==========================================
+
+def send_email(title, link, category, source):
+
+    gmail_address = os.getenv("GMAIL_ADDRESS")
+    gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+
+    if not gmail_address or not gmail_password:
+        raise RuntimeError(
+            "Secrets Gmail manquants dans GitHub."
+        )
+
+    gmail_password = gmail_password.replace(" ", "")
+
+    message = EmailMessage()
+
+    message["From"] = gmail_address
+    message["To"] = gmail_address
+    message["Subject"] = (
+        f"DEALHUNTER - Nouvelle offre : {category}"
+    )
+
+    message.set_content(
+        "NOUVELLE PROMOTION DETECTEE !\n\n"
+        f"Produit : {title}\n"
+        f"Categorie : {category}\n"
+        f"Source : {source}\n\n"
+        f"Lien vers l'offre :\n{link}\n"
+    )
+
+    with smtplib.SMTP_SSL(
+        "smtp.gmail.com",
+        465,
+        timeout=30
+    ) as server:
+
+        server.login(gmail_address, gmail_password)
+        server.send_message(message)
+
+
+# ==========================================
+# PROGRAMME PRINCIPAL
 # ==========================================
 
 def main():
 
     print("=" * 55)
-    print("                  DEALHUNTER")
+    print("                 DEALHUNTER")
     print("       COMPOSANTS PC ET PERIPHERIQUES")
     print("=" * 55)
 
-    seen = set()
-    results = {}
+    seen_links = load_seen_links()
+    new_count = 0
 
     for source, url in FEEDS.items():
 
@@ -379,18 +348,22 @@ def main():
 
             data = urlopen(
                 request,
-                timeout=20
+                timeout=30
             ).read()
 
             feed = feedparser.parse(data)
+
+            if feed.bozo and not feed.entries:
+                print("Flux RSS illisible.")
+                continue
 
             for entry in feed.entries:
 
                 title = html.unescape(
                     entry.get("title", "")
-                )
+                ).strip()
 
-                link = entry.get("link", "")
+                link = entry.get("link", "").strip()
 
                 summary = html.unescape(
                     entry.get("summary", "")
@@ -399,67 +372,56 @@ def main():
                 if not title or not link:
                     continue
 
-                # Vérification des doublons
-                if link in seen:
+                if link in seen_links:
                     continue
 
-                # Classification
                 category = classify(title, summary)
 
                 if category is None:
                     continue
 
-                seen.add(link)
+                print(f"\nNouvelle offre : {title}")
+                print(f"Categorie : {category}")
+                print(f"Source : {source}")
 
-                if category not in results:
-                    results[category] = []
+                try:
 
-                results[category].append({
-                    "title": title,
-                    "link": link,
-                    "source": source
-                })
+                    send_email(
+                        title,
+                        link,
+                        category,
+                        source
+                    )
+
+                except Exception as error:
+
+                    print(
+                        f"Erreur Gmail : {error}"
+                    )
+
+                    continue
+
+                # Historique uniquement après envoi réussi.
+                seen_links.add(link)
+                save_seen_links(seen_links)
+
+                new_count += 1
+
+                print("E-mail envoyé avec succès !")
 
         except Exception as error:
 
-            print(f"Erreur : {error}")
+            print(
+                f"Erreur pour {source} : {error}"
+            )
 
-    # ======================================
-    # AFFICHAGE DES RESULTATS
-    # ======================================
-
-    print("\n\n" + "=" * 55)
-    print("                OFFRES DETECTEES")
-    print("=" * 55)
-
-    if not results:
-
-        print("\nAucune offre pertinente trouvee.")
-
-    for category, offers in results.items():
-
-        print(f"\n\n######## {category} ########")
-
-        for offer in offers:
-
-            print(f"\nSource : {offer['source']}")
-            print(f"Produit : {offer['title']}")
-            print(f"Lien : {offer['link']}")
-
-    # ======================================
-    # BILAN
-    # ======================================
-
-    total = sum(
-        len(offers)
-        for offers in results.values()
+    print("\n" + "=" * 55)
+    print(
+        f"TOTAL : {new_count} nouvelles offres envoyées"
     )
-
-    print("\n\n" + "=" * 55)
-    print(f"TOTAL : {total} offres")
     print("=" * 55)
 
-    print("\nRecherche terminee.")
+    print("\nRecherche terminée.")
 
 
 if __name__ == "__main__":
