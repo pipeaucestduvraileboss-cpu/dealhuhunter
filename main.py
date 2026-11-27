@@ -6,6 +6,7 @@ import os
 import re
 import smtplib
 import unicodedata
+import ssl
 
 from email.message import EmailMessage
 from pathlib import Path
@@ -281,13 +282,14 @@ def save_seen_links(seen_links):
 # ENVOI GMAIL
 # ==========================================
 
+
 def send_email(Titre, lien, Categorie, Source):
 
     gmail_address = os.getenv("GMAIL_ADDRESS")
     gmail_password = os.getenv("GMAIL_APP_PASSWORD")
 
     if not gmail_address or not gmail_password:
-        raise RuntimeError("Secrets Gmail manquants dans GitHub.")
+        raise RuntimeError("Identifiants Gmail manquants.")
 
     gmail_password = gmail_password.replace(" ", "")
 
@@ -297,19 +299,38 @@ def send_email(Titre, lien, Categorie, Source):
     message["Subject"] = f"DEALHUNTER - Nouvelle offre : {Categorie}"
 
     message.set_content(
-        "NOUVELLE PROMOTION DETECTEE !\n\n"
+        f"Nouvelle promotion détectée !\n\n"
         f"Produit : {Titre}\n"
-        f"Categorie : {Categorie}\n"
+        f"Catégorie : {Categorie}\n"
         f"Source : {Source}\n"
-        f"Lien vers l'offre : {lien}\n"
+        f"Lien : {lien}\n"
     )
 
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as serveur:
-        serveur.ehlo()
-        serveur.starttls()
-        serveur.ehlo()
-        serveur.login(gmail_address, gmail_password)
-        serveur.send_message(message)
+    etape = "Connexion au serveur"
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as serveur:
+
+            etape = "Identification EHLO"
+            serveur.ehlo()
+
+            etape = "Activation TLS"
+            serveur.starttls(context=ssl.create_default_context())
+            serveur.ehlo()
+
+            etape = "Authentification Gmail"
+            serveur.login(gmail_address, gmail_password)
+
+            etape = "Envoi du message"
+            serveur.send_message(message)
+
+        print("EMAIL ENVOYE AVEC SUCCES")
+
+    except Exception as erreur:
+        raise RuntimeError(
+            f"Echec à l'étape : {etape} | "
+            f"{type(erreur).__name__} : {erreur}"
+        ) from erreur
 
 
 
