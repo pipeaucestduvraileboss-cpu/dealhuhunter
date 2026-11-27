@@ -1,3 +1,4 @@
+
 name: DEALHUNTER
 
 on:
@@ -22,4 +23,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Lancer DEALHUNTER
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python main.py
