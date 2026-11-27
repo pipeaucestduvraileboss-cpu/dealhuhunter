@@ -281,42 +281,36 @@ def save_seen_links(seen_links):
 # ENVOI GMAIL
 # ==========================================
 
-def send_email(title, link, category, source):
+def send_email(Titre, lien, Categorie, Source):
 
     gmail_address = os.getenv("GMAIL_ADDRESS")
     gmail_password = os.getenv("GMAIL_APP_PASSWORD")
 
     if not gmail_address or not gmail_password:
-        raise RuntimeError(
-            "Secrets Gmail manquants dans GitHub."
-        )
+        raise RuntimeError("Secrets Gmail manquants dans GitHub.")
 
     gmail_password = gmail_password.replace(" ", "")
 
     message = EmailMessage()
-
     message["From"] = gmail_address
     message["To"] = gmail_address
-    message["Subject"] = (
-        f"DEALHUNTER - Nouvelle offre : {category}"
-    )
+    message["Subject"] = f"DEALHUNTER - Nouvelle offre : {Categorie}"
 
     message.set_content(
         "NOUVELLE PROMOTION DETECTEE !\n\n"
-        f"Produit : {title}\n"
-        f"Categorie : {category}\n"
-        f"Source : {source}\n\n"
-        f"Lien vers l'offre :\n{link}\n"
+        f"Produit : {Titre}\n"
+        f"Categorie : {Categorie}\n"
+        f"Source : {Source}\n"
+        f"Lien vers l'offre : {lien}\n"
     )
 
-    with smtplib.SMTP_SSL(
-        "smtp.gmail.com",
-        465,
-        timeout=30
-    ) as server:
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as serveur:
+        serveur.ehlo()
+        serveur.starttls()
+        serveur.ehlo()
+        serveur.login(gmail_address, gmail_password)
+        serveur.send_message(message)
 
-        server.login(gmail_address, gmail_password)
-        server.send_message(message)
 
 
 # ==========================================
